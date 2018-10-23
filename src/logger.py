@@ -7,11 +7,11 @@ import tensorflow as tf
 import numpy as np
 import scipy.misc
 
-try:
-    from StringIO import StringIO  # Python 2.7
-except ImportError:
-    from io import BytesIO  # Python 3.x
-
+# try:
+#     from io import StringIO  # Python 2.7
+# except ImportError:
+#     from io import BytesIO  # Python 3.x
+from io import BytesIO
 
 class Logger(object):
     def __init__(self, log_dir, suffix=None):
@@ -26,10 +26,7 @@ class Logger(object):
         img_summaries = []
         for i, img in enumerate(images):
             # Write the image to a string
-            try:
-                s = StringIO()
-            except:
-                s = BytesIO()
+            s = BytesIO()
             scipy.misc.toimage(img).save(s, format="png")
 
             # Create an Image object
@@ -55,10 +52,7 @@ class Logger(object):
         img_summaries = []
         for i, vid in enumerate(videos):
             # Concat a video
-            try:
-                s = StringIO()
-            except:
-                s = BytesIO()
+            s = BytesIO()
 
             v = vid.transpose(1, 2, 3, 0)
             v = [np.squeeze(f) for f in np.split(v, v.shape[0], axis=0)]

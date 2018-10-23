@@ -79,19 +79,19 @@ def video_transform(video, image_transform):
 
 if __name__ == "__main__":
     args = docopt.docopt(__doc__)
-    print args
+    print(args)
 
     n_channels = int(args['--n_channels'])
 
-    image_transforms = transforms.Compose([
-        PIL.Image.fromarray,
-        transforms.Scale(int(args["--image_size"])),
-        transforms.ToTensor(),
-        lambda x: x[:n_channels, ::],
-        transforms.Normalize((0.5, 0.5, .5), (0.5, 0.5, 0.5)),
-    ])
-
-    video_transforms = functools.partial(video_transform, image_transform=image_transforms)
+    # image_transforms = transforms.Compose([
+    #     PIL.Image.fromarray,
+    #     transforms.Scale(int(args["--image_size"])),
+    #     transforms.ToTensor(),
+    #     lambda x: x[:n_channels, ::],
+    #     transforms.Normalize((0.5, 0.5, .5), (0.5, 0.5, 0.5)),
+    # ])
+    #
+    # video_transforms = functools.partial(video_transform, image_transform=image_transforms)
 
     video_length = int(args['--video_length'])
     image_batch = int(args['--image_batch'])
@@ -102,10 +102,10 @@ if __name__ == "__main__":
     dim_z_category = int(args['--dim_z_category'])
 
     dataset = data.VideoFolderDataset(args['<dataset>'], cache=os.path.join(args['<dataset>'], 'local.db'))
-    image_dataset = data.ImageDataset(dataset, image_transforms)
+    image_dataset = data.ImageDataset(dataset, int(args["--image_size"]), int(args["--n_channels"]))
     image_loader = DataLoader(image_dataset, batch_size=image_batch, drop_last=True, num_workers=2, shuffle=True)
 
-    video_dataset = data.VideoDataset(dataset, 16, 2, video_transforms)
+    video_dataset = data.VideoDataset(dataset, 16, 2, int(args["--image_size"]), int(args["--n_channels"]))
     video_loader = DataLoader(video_dataset, batch_size=video_batch, drop_last=True, num_workers=2, shuffle=True)
 
     generator = models.VideoGenerator(n_channels, dim_z_content, dim_z_category, dim_z_motion, video_length)

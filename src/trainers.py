@@ -126,12 +126,14 @@ class Trainer(object):
 
     def sample_real_image_batch(self):
         if self.image_enumerator is None:
+            # print("self.image_sampler")
+            # print(self.image_sampler)
             self.image_enumerator = enumerate(self.image_sampler)
 
         batch_idx, batch = next(self.image_enumerator)
         b = batch
         if self.use_cuda:
-            for k, v in batch.iteritems():
+            for k, v in batch.items():
                 b[k] = v.cuda()
 
         if batch_idx == len(self.image_sampler) - 1:
@@ -146,7 +148,7 @@ class Trainer(object):
         batch_idx, batch = next(self.video_enumerator)
         b = batch
         if self.use_cuda:
-            for k, v in batch.iteritems():
+            for k, v in batch.items():
                 b[k] = v.cuda()
 
         if batch_idx == len(self.video_sampler) - 1:
@@ -271,24 +273,22 @@ class Trainer(object):
                                          sample_fake_image_batch, sample_fake_video_batch,
                                          opt_generator)
 
-            logs['l_gen'] += l_gen.data[0]
+            logs['l_gen'] += l_gen.data.item()
 
-            logs['l_image_dis'] += l_image_dis.data[0]
-            logs['l_video_dis'] += l_video_dis.data[0]
-
-            batch_num += 1
+            logs['l_image_dis'] += l_image_dis.data.item()
+            logs['l_video_dis'] += l_video_dis.data.item()
 
             if batch_num % self.log_interval == 0:
 
                 log_string = "Batch %d" % batch_num
-                for k, v in logs.iteritems():
+                for k, v in logs.items():
                     log_string += " [%s] %5.3f" % (k, v / self.log_interval)
 
                 log_string += ". Took %5.2f" % (time.time() - start_time)
 
-                print log_string
+                print(log_string)
 
-                for tag, value in logs.items():
+                for tag, value in list(logs.items()):
                     logger.scalar_summary(tag, value / self.log_interval, batch_num)
 
                 logs = init_logs()
@@ -307,3 +307,5 @@ class Trainer(object):
             if batch_num >= self.train_batches:
                 torch.save(generator, os.path.join(self.log_folder, 'generator_%05d.pytorch' % batch_num))
                 break
+
+            batch_num += 1

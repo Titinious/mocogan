@@ -10,7 +10,9 @@ import numpy as np
 import torch.utils.data
 from torchvision.datasets import ImageFolder
 import PIL
+from torchvision import transforms
 
+import functools
 
 class VideoFolderDataset(torch.utils.data.Dataset):
     def __init__(self, folder, cache, min_len=32):
@@ -20,7 +22,7 @@ class VideoFolderDataset(torch.utils.data.Dataset):
         self.images = []
 
         if cache is not None and os.path.exists(cache):
-            with open(cache, 'r') as f:
+            with open(cache, 'rb') as f:
                 self.images, self.lengths = pickle.load(f)
         else:
             for idx, (im, categ) in enumerate(
@@ -33,11 +35,11 @@ class VideoFolderDataset(torch.utils.data.Dataset):
                     self.lengths.append(length)
 
             if cache is not None:
-                with open(cache, 'w') as f:
+                with open(cache, 'wb') as f:
                     pickle.dump((self.images, self.lengths), f)
 
         self.cumsum = np.cumsum([0] + self.lengths)
-        print "Total number of frames {}".format(np.sum(self.lengths))
+        print("Total number of frames {}".format(np.sum(self.lengths)))
 
     def __getitem__(self, item):
         path, label = self.images[item]
@@ -49,10 +51,12 @@ class VideoFolderDataset(torch.utils.data.Dataset):
 
 
 class ImageDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, transform=None):
+    def __init__(self, dataset, image_size=64, n_channels=3):
         self.dataset = dataset
-
-        self.transforms = transform if transform is not None else lambda x: x
+        print("need to redefine args")
+        self.image_size = 64
+        self.n_channels = 3#int(args['--n_channels'])
+        # self.transforms = "Default"#transform if transform is not None else lambda x: x
 
     def __getitem__(self, item):
         if item != 0:
@@ -75,20 +79,33 @@ class ImageDataset(torch.utils.data.Dataset):
             frame = video[i_from: i_to, :, ::]
 
         if frame.shape[0] == 0:
-            print "video {}. From {} to {}. num {}".format(video.shape, i_from, i_to, item)
+            print("video {}. From {} to {}. num {}".format(video.shape, i_from, i_to, item))
 
-        return {"images": self.transforms(frame), "categories": target}
+        image_transforms = transforms.Compose([
+            PIL.Image.fromarray,
+            transforms.Resize(self.image_size),
+            transforms.ToTensor(),
+            lambda x: x[:self.n_channels, ::],
+            transforms.Normalize((0.5, 0.5, .5), (0.5, 0.5, 0.5)),
+        ])
+
+        return {"images": image_transforms(frame), "categories": target}
 
     def __len__(self):
         return self.dataset.cumsum[-1]
 
 
 class VideoDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, video_length, every_nth=1, transform=None):
+    def __init__(self, dataset, video_length, every_nth=1, image_size=64, n_channels=3):
         self.dataset = dataset
         self.video_length = video_length
         self.every_nth = every_nth
-        self.transforms = transform if transform is not None else lambda x: x
+        print("need to redefine args")
+        self.image_size = 64
+        self.n_channels = 3 #int(args['--n_channels'])
+
+        # self.transforms = transform if transform is not None else lambda x: x
+        # self.transforms = "Default"
 
     def __getitem__(self, item):
         video, target = self.dataset[item]
@@ -112,7 +129,26 @@ class VideoDataset(torch.utils.data.Dataset):
         frames = np.split(video, video_len, axis=1 if horizontal else 0)
         selected = np.array([frames[s_id] for s_id in subsequence_idx])
 
-        return {"images": self.transforms(selected), "categories": target}
+        image_transforms = transforms.Compose([
+            PIL.Image.fromarray,
+            transforms.Resize(self.image_size),
+            transforms.ToTensor(),
+            lambda x: x[:self.n_channels, ::],
+            transforms.Normalize((0.5, 0.5, .5), (0.5, 0.5, 0.5)),
+        ])
+
+        def video_transform(video, image_transform):
+            vid = []
+            for im in video:
+                vid.append(image_transform(im))
+
+            vid = torch.stack(vid).permute(1, 0, 2, 3)
+
+            return vid
+
+        video_transforms = functools.partial(video_transform, image_transform=image_transforms)
+
+        return {"images": video_transforms(selected), "categories": target}
 
     def __len__(self):
         return len(self.dataset)
@@ -129,7 +165,7 @@ class ImageSampler(torch.utils.data.Dataset):
             result[k] = np.take(self.dataset.get_data()[k], index, axis=0)
 
         if self.transforms is not None:
-            for k, transform in self.transforms.iteritems():
+            for k, transform in self.transforms.items():
                 result[k] = transform(result[k])
 
         return result
@@ -154,7 +190,7 @@ class VideoSampler(torch.utils.data.Dataset):
             result[k] = np.take(self.dataset.get_data()[k], ids, axis=0)
 
         subsequence_idx = None
-        print result[k].shape[0]
+        print(result[k].shape[0])
 
         # videos can be of various length, we randomly sample sub-sequences
         if result[k].shape[0] > self.video_length:
@@ -165,16 +201,16 @@ class VideoSampler(torch.utils.data.Dataset):
         elif result[k].shape[0] == self.video_length:
             subsequence_idx = np.arange(0, self.video_length)
         else:
-            print "Length is too short id - {}, len - {}".format(self.unique_ids[item], result[k].shape[0])
+            print("Length is too short id - {}, len - {}".format(self.unique_ids[item], result[k].shape[0]))
 
         if subsequence_idx:
             for k in self.dataset.keys:
                 result[k] = np.take(result[k], subsequence_idx, axis=0)
         else:
-            print result[self.dataset.keys[0]].shape
+            print(result[self.dataset.keys[0]].shape)
 
         if self.transforms is not None:
-            for k, transform in self.transforms.iteritems():
+            for k, transform in self.transforms.items():
                 result[k] = transform(result[k])
 
         return result
